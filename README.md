@@ -1,5 +1,5 @@
 # Facial Recognition
-This is a program created to train a model tin order o recognize of some people on an image. This model will be trained from  photos of these people, and after it will be able to recognize any of these people on any image.
+This is a program created to train a model in order to recognize some people on an image. This model will be trained from  photos of these people, and after that it will be able to recognize any of these people on any image.
 This program uses **[Pytorch](https://pytorch.org/)** to create his neural network and python bindings of **[OpenCV](https://opencv.org/)** (cv2) for image processing.
 
 ## How do we train the model ?
