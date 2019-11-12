@@ -14,7 +14,7 @@ After that our model be trained, we must execute this command in the root of the
 ```console
    python3 main.py path/to/image.jpg
 ```
-Where **path/to/image/jpg** is the path to the image that we want to test.
+Where **path/to/image.jpg** is the path to the image that we want to test.
 
 ## Example
 
