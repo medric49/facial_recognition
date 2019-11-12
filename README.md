@@ -3,14 +3,15 @@ This is a program created to train a model to the recognition of some people on 
 This program use **Pytorch library** to create his neural network and **CV2 library** for image processing.
 
 ## How do we train the model ?
-First of all, we should add images of these people in the folder **images/train**. Each group of photos of each person must be placed in a folder named by this person's name.
-After that, we must train our model by executing this command in the root project
+First of all, we should add images of heads of these people in the folder **images/train**. Each group of photos (
+preferably the photos of head) of each person must be placed in a folder named by this person's name.
+After that, we must train our model by executing this command in the project root
 ```console
    python3 trainer.py
 ```
 
 ## How do we use the model for recognition ?
-After that our model be trained, we must execute this command in the root of the project
+After that our model be trained, we must execute this command in the project root
 ```console
    python3 main.py path/to/image.jpg
 ```
