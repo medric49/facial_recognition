@@ -41,5 +41,5 @@ y_train = np.array(y_train)
 
 
 model = create_model(WIDTH, HEIGHT, class_number)
-model.fit(x_train, y_train, epochs=40, batch_size=32, validation_split=0.15)
+model.fit(x_train, y_train, epochs=40, batch_size=32, validation_split=0.15, shuffle=True)
 
