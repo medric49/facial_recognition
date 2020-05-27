@@ -16,6 +16,8 @@ for f in os.listdir(data_dir):
 
 class_number = len(people)
 
+if class_number == 0:
+    exit()
 
 x_train = []
 y_train = []
