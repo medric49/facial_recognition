@@ -1,19 +1,10 @@
 import os
 import cv2
 import numpy as np
+from utils import data_dir, WIDTH, HEIGHT, get_people
 from network import create_model
 
-WIDTH = 150
-HEIGHT = 150
-
-data_dir = 'images'
-people = []
-
-for f in os.listdir(data_dir):
-    folder = "/".join([data_dir, f])
-    if os.path.isdir(folder):
-        people.append(f)
-
+people = get_people()
 class_number = len(people)
 
 if class_number == 0:
