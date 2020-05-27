@@ -1,84 +1,43 @@
-# import libraries
-import torch
+import os
+import cv2
 import numpy as np
-import torch.nn as nn
-from torchvision import datasets
-import torchvision.transforms as transforms
-from torch.utils.data.sampler import SubsetRandomSampler
-from network import Net, WIDTH, HEIGHT
+from network import create_model
 
-num_workers = 0
-batch_size = 10
-valid_size = 0.2
+WIDTH = 150
+HEIGHT = 150
 
-transform = transforms.Compose([transforms.Grayscale(),
-                                transforms.Resize( (WIDTH,HEIGHT) ),
-                                transforms.ToTensor()])
+data_dir = 'images'
+people = []
 
-data_dir = 'images/train'
-train_data = datasets.ImageFolder(data_dir, transform=transform)
+for f in os.listdir(data_dir):
+    folder = "/".join([data_dir, f])
+    if os.path.isdir(folder):
+        people.append(f)
 
-num_train = len(train_data)
-indices = list(range(num_train))
-np.random.shuffle(indices)
-split = int(np.floor(valid_size * num_train))
-train_idx, valid_idx = indices[split:], indices[:split]
-
-train_sampler = SubsetRandomSampler(train_idx)
-valid_sampler = SubsetRandomSampler(valid_idx)
-
-train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size,
-    sampler=train_sampler, num_workers=num_workers)
-valid_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size,
-    sampler=valid_sampler, num_workers=num_workers)
+class_number = len(people)
 
 
-model = Net()
+x_train = []
+y_train = []
 
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+image_class = -1
 
-n_epochs = 150
+for person in people:
+    folder = "/".join([data_dir, person])
+    image_class += 1
 
-valid_loss_min = np.Inf
+    for image in os.listdir(folder):
+        image = "/".join([folder, image])
+        image = cv2.imread(image)
+        image = cv2.resize(image, (WIDTH, HEIGHT))
 
-for epoch in range(n_epochs):
-    train_loss = 0.0
-    valid_loss = 0.0
+        x_train.append(image)
+        y_train.append([1 if i == image_class else 0 for i in range(class_number)])
 
-    ###################
-    # train the model #
-    ###################
-    model.train()
-    for data, target in train_loader:
-        optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output, target)
-        loss.backward()
-        optimizer.step()
-        train_loss += loss.item() * data.size(0)
+x_train = np.array(x_train)
+y_train = np.array(y_train)
 
-    ######################
-    # validate the model #
-    ######################
-    model.eval()
-    for data, target in valid_loader:
-        output = model(data)
-        loss = criterion(output, target)
-        valid_loss += loss.item() * data.size(0)
-    train_loss = train_loss / len(train_loader.dataset)
-    valid_loss = valid_loss / len(valid_loader.dataset)
 
-    print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format(
-        epoch + 1,
-        train_loss,
-        valid_loss
-    ))
+model = create_model(WIDTH, HEIGHT, class_number)
+model.fit(x_train, y_train, epochs=40, batch_size=32, validation_split=0.15)
 
-    # save model if validation loss has decreased
-    if valid_loss <= valid_loss_min:
-        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
-            valid_loss_min,
-            valid_loss))
-        torch.save(model.state_dict(), 'model.pt')
-        valid_loss_min = valid_loss

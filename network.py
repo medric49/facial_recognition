@@ -1,30 +1,38 @@
-from torch import nn
-from torch.nn import functional as F
+import keras.layers as layers
+import keras.models as models
+import keras.optimizers as optimizers
 
-WIDTH = 150
-HEIGHT = 150
-PEOPLE = ['Behekaken', 'Djenal', 'Nafi', 'Rossif']
 
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        hidden_1 = 780
-        hidden_2 = 256
-        hidden_3 = 64
-        hidden_4 = len(PEOPLE)
-        self.fc1 = nn.Linear(WIDTH * HEIGHT, hidden_1)
-        self.fc2 = nn.Linear(hidden_1, hidden_2)
-        self.fc3 = nn.Linear(hidden_2, hidden_3)
-        self.fc4 = nn.Linear(hidden_3, hidden_4)
-        self.dropout = nn.Dropout(0.2)
+def create_model(width, height, class_number):
+    model = models.Sequential()
+    dropout = 0.4
 
-    def forward(self, x):
-        x = x.view(-1, WIDTH * HEIGHT)
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = F.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)
-        x = self.dropout(x)
-        x = self.fc4(x)
-        return x
+    model.add(layers.Conv2D(32, kernel_size=3, activation='relu', input_shape=(width, height, 3)))
+    model.add(layers.BatchNormalization())
+
+    model.add(layers.Conv2D(32, kernel_size=3, activation='relu'))
+    model.add(layers.BatchNormalization())
+
+    model.add(layers.Conv2D(32, kernel_size=5, strides=2, padding='same', activation='relu'))
+    model.add(layers.BatchNormalization())
+
+    model.add(layers.Dropout(dropout))
+
+    model.add(layers.Conv2D(64, kernel_size = 3, activation='relu'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.Conv2D(64, kernel_size = 3, activation='relu'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.Conv2D(64, kernel_size = 5, strides=2, padding='same', activation='relu'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.Dropout(dropout))
+
+    model.add(layers.Conv2D(128, kernel_size = 4, activation='relu'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.Flatten())
+    model.add(layers.Dropout(dropout))
+    model.add(layers.Dense(class_number, activation='softmax'))
+
+    optimizer = optimizers.SGD(lr=0.02)
+    model.compile(loss="categorical_crossentropy", optimizer=optimizer, metrics=["accuracy"])
+    return model
+
