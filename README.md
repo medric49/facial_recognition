@@ -1,10 +1,10 @@
 # Facial Recognition
-This is a program created to train a model in order to recognize some people on an image. This model will be trained from  photos of these people, and after that it will be able to recognize any of these people on any image.
-This program uses **[Pytorch](https://pytorch.org/)** to create his neural network and python bindings of **[OpenCV](https://opencv.org/)** (cv2) for image processing.
+This is a program created to train a model in order to recognize some people on an image. This model will be trained from  photos of these people, and after it will be able to recognize any of these people on any image.
+This program uses **[Keras](https://keras.io/)** to create its neural network and **[OpenCV](https://opencv.org/)** (cv2) for image processing.
 
 ## How do we train the model ?
-First of all, we should add images of heads of these people in the folder **images/train**. Each group of photos (
-preferably the photos of head) of each person must be placed in a folder named after this person's name.
+First of all, we should add images of heads of these people in the folder **images/**. Each group of photos (
+preferably the photos of head) of each person must be placed in a folder named by this person's name.
 After that, we must train our model by executing this command in the project root
 ```shell
    python3 trainer.py
@@ -15,7 +15,7 @@ After that our model be trained, we must execute this command in the project roo
 ```shell
    python3 main.py path/to/image.jpg
 ```
-Where **path/to/image.jpg** is the path to the image that we want to test.
+Where **path/to/image.jpg** is the path to the image whose we want to test.
 
 ## Example
 
