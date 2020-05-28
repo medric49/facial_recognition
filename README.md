@@ -19,8 +19,8 @@ Where **path/to/image.jpg** is the path to the image whose we want to test.
 
 ## Example
 
-<img src="medric.png"
+<img src="before.png"
      alt="Markdown Monster icon"
      style="float: left; margin-right: 10px;" />
-<img src="output.png"
+<img src="after.png"
      style="float: right; margin-right: 10px;" />

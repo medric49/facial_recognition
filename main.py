@@ -1,18 +1,13 @@
-#!/usr/bin/env python3
-# facedetect: a simple face detector for batch processing
-# Copyright(c) 2013-2017 by wave++ "Yuri D'Elia" <wavexx@thregr.org>
-# Distributed under GPLv2+ (see COPYING) WITHOUT ANY WARRANTY.
 from __future__ import print_function, division, generators, unicode_literals
 
 import argparse
-import numpy as np
-import cv2
 import math
-import sys
 import os
-
-import torch
-from network import Net, WIDTH, HEIGHT, PEOPLE
+import sys
+import cv2
+from utils import WIDTH, HEIGHT, get_people
+import keras.models as models
+import numpy as np
 
 # CV compatibility stubs
 if 'IMREAD_GRAYSCALE' not in dir(cv2):
@@ -45,10 +40,6 @@ PROFILES = {
     'HAAR_FRONTALFACE_ALT2': 'haarcascades/haarcascade_frontalface_alt2.xml',
 }
 
-# Face normalization
-NORM_SIZE = 100
-NORM_MARGIN = 10
-
 
 # Support functions
 def error(msg):
@@ -71,224 +62,67 @@ def load_cascades(data_dir):
             fatal("cannot load {} from {}".format(k, v))
 
 
-def crop_rect(im, rect, shave=0):
-    return im[rect[1] + shave:rect[1] + rect[3] - shave,
-           rect[0] + shave:rect[0] + rect[2] - shave]
-
-
-def shave_margin(im, margin):
-    return im[margin:-margin, margin:-margin]
-
-
-def norm_rect(im, rect, equalize=True, same_aspect=False):
-    roi = crop_rect(im, rect)
-    if equalize:
-        roi = cv2.equalizeHist(roi)
-    side = NORM_SIZE + NORM_MARGIN
-    if same_aspect:
-        scale = side / max(rect[2], rect[3])
-        dsize = (int(rect[2] * scale), int(rect[3] * scale))
-    else:
-        dsize = (side, side)
-    roi = cv2.resize(roi, dsize, interpolation=cv2.INTER_CUBIC)
-    return shave_margin(roi, NORM_MARGIN)
-
-
-def rank(im, rects):
-    scores = []
-    best = None
-
-    for i in range(len(rects)):
-        rect = rects[i]
-        roi_n = norm_rect(im, rect, equalize=False, same_aspect=True)
-        roi_l = cv2.Laplacian(roi_n, cv2.CV_8U)
-        e = np.sum(roi_l) / (roi_n.shape[0] * roi_n.shape[1])
-
-        dx = im.shape[1] / 2 - rect[0] + rect[2] / 2
-        dy = im.shape[0] / 2 - rect[1] + rect[3] / 2
-        d = math.sqrt(dx ** 2 + dy ** 2) / (max(im.shape) / 2)
-
-        s = (rect[2] + rect[3]) / 2
-        scores.append({'s': s, 'e': e, 'd': d})
-
-    sMax = max([x['s'] for x in scores])
-    eMax = max([x['e'] for x in scores])
-
-    for i in range(len(scores)):
-        s = scores[i]
-        sN = s['sN'] = s['s'] / sMax
-        eN = s['eN'] = s['e'] / eMax
-        f = s['f'] = eN * 0.7 + (1 - s['d']) * 0.1 + sN * 0.2
-
-    ranks = range(len(scores))
-    ranks = sorted(ranks, reverse=True, key=lambda x: scores[x]['f'])
-    for i in range(len(scores)):
-        scores[ranks[i]]['RANK'] = i
-
-    return scores, ranks[0]
-
-
-def mssim_norm(X, Y, K1=0.01, K2=0.03, win_size=11, sigma=1.5):
-    C1 = K1 ** 2
-    C2 = K2 ** 2
-    cov_norm = win_size ** 2
-
-    ux = cv2.GaussianBlur(X, (win_size, win_size), sigma)
-    uy = cv2.GaussianBlur(Y, (win_size, win_size), sigma)
-    uxx = cv2.GaussianBlur(X * X, (win_size, win_size), sigma)
-    uyy = cv2.GaussianBlur(Y * Y, (win_size, win_size), sigma)
-    uxy = cv2.GaussianBlur(X * Y, (win_size, win_size), sigma)
-    vx = cov_norm * (uxx - ux * ux)
-    vy = cov_norm * (uyy - uy * uy)
-    vxy = cov_norm * (uxy - ux * uy)
-
-    A1 = 2 * ux * uy + C1
-    A2 = 2 * vxy + C2
-    B1 = ux ** 2 + uy ** 2 + C1
-    B2 = vx + vy + C2
-    D = B1 * B2
-    S = (A1 * A2) / D
-
-    return np.mean(shave_margin(S, (win_size - 1) // 2))
-
-
-def face_detect(im, biggest=False):
+def face_detect(im):
     side = math.sqrt(im.size)
-    minlen = int(side / 20)
-    maxlen = int(side / 2)
+    min_len = int(side / 20)
+    max_len = int(side / 2)
     flags = cv2.CASCADE_DO_CANNY_PRUNING
-
-    # optimize queries when possible
-    if biggest:
-        flags |= cv2.CASCADE_FIND_BIGGEST_OBJECT
 
     # frontal faces
     cc = CASCADES['HAAR_FRONTALFACE_ALT2']
-    features = cc.detectMultiScale(im, 1.1, 4, flags, (minlen, minlen), (maxlen, maxlen))
+    features = cc.detectMultiScale(im, 1.1, 4, flags, (min_len, min_len), (max_len, max_len))
     return features
 
 
-def face_detect_file(path, biggest=False):
+def face_detect_file(path):
     im = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if im is None:
         fatal("cannot load input image {}".format(path))
     im = cv2.equalizeHist(im)
-    features = face_detect(im, biggest)
+    features = face_detect(im)
     return im, features
-
-
-def pairwise_similarity(im, features, template, **mssim_args):
-    template = np.float32(template) / 255
-    for rect in features:
-        roi = norm_rect(im, rect)
-        roi = np.float32(roi) / 255
-        yield mssim_norm(roi, template, **mssim_args)
 
 
 def __main__():
     ap = argparse.ArgumentParser(description='A simple face detector for batch processing')
-    ap.add_argument('--biggest', action="store_true",
-                    help='Extract only the biggest face')
-    ap.add_argument('--best', action="store_true",
-                    help='Extract only the best matching face')
-    ap.add_argument('-c', '--center', action="store_true",
-                    help='Print only the center coordinates')
-    ap.add_argument('--data-dir', metavar='DIRECTORY', default=DATA_DIR,
-                    help='OpenCV data files directory')
-    ap.add_argument('-q', '--query', action="store_true",
-                    help='Query only (exit 0: face detected, 2: no detection)')
-    ap.add_argument('-s', '--search', metavar='FILE',
-                    help='Search for faces similar to the one supplied in FILE')
-    ap.add_argument('--search-threshold', metavar='PERCENT', type=int, default=30,
-                    help='Face similarity threshold (default: 30%%)')
-    ap.add_argument('-o', '--output', help='Image output file')
-    ap.add_argument('-d', '--debug', action="store_true",
-                    help='Add debugging metrics in the image output file')
     ap.add_argument('file', help='Input image file')
     args = ap.parse_args()
 
-    load_cascades(args.data_dir)
+    load_cascades(DATA_DIR)
 
-    model = Net()
-    model.load_state_dict(torch.load('model.pt'))
+    _, features = face_detect_file(args.file)
 
-    # detect faces in input image
-    im, features = face_detect_file(args.file, args.query or args.biggest)
+    im = cv2.imread(args.file)
+    output = cv2.imread(args.file)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.80
+    font_color = (255, 255, 255)
+    line_type = 2
 
-    # match against the requested face
-    sim_scores = None
-    if args.search:
-        s_im, s_features = face_detect_file(args.search, True)
-        if len(s_features) == 0:
-            fatal("cannot detect face in template")
-        sim_scores = []
-        sim_features = []
-        sim_threshold = args.search_threshold / 100
-        sim_template = norm_rect(s_im, s_features[0])
-        for i, score in enumerate(pairwise_similarity(im, features, sim_template)):
-            if score >= sim_threshold:
-                sim_scores.append(score)
-                sim_features.append(features[i])
-        features = sim_features
+    people = get_people()
+    model = models.load_model("model_state.pt")
 
-    # exit early if possible
-    if args.query:
-        return 0 if len(features) else 2
+    for i in range(len(features)):
+        rect = features[i]
 
-    # compute scores
-    scores = []
-    best = None
-    if len(features) and (args.debug or args.best or args.biggest or sim_scores):
-        scores, best = rank(im, features)
-        if sim_scores:
-            for i in range(len(features)):
-                scores[i]['MSSIM'] = sim_scores[i]
+        xy1 = (rect[0], rect[1])
+        xy2 = (rect[0] + rect[2], rect[1] + rect[3])
 
-    # debug features
-    if True:
-        im = cv2.imread(args.file)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        fontHeight = cv2.getTextSize("", font, 0.5, 1)[0][1] + 5
+        image = im[rect[1]:rect[1] + rect[3], rect[0]: rect[0] + rect[2]]
+        image = [cv2.resize(image, (WIDTH, HEIGHT))]
+        image = np.array(image)
 
-        for i in range(len(features)):
-            if best is not None and i != best and not args.debug:
-                next
+        prediction = model.predict(image)
+        predicted_person = people[prediction.argmax(axis=1)[0]]
+        percentage = round(prediction.max(axis=1)[0] * 100, 2)
+        text = "{} ({}%)".format(predicted_person, percentage)
 
-            rect = features[i]
-            fg = (0, 255, 255) if i == best else (255, 255, 255)
+        cv2.rectangle(output, xy1, xy2, (0, 0, 0), 4)
+        cv2.rectangle(output, xy1, xy2, (255, 255, 255), 2)
 
-            xy1 = (rect[0], rect[1])
-            xy2 = (rect[0] + rect[2], rect[1] + rect[3])
-            cv2.rectangle(im, xy1, xy2, (0, 0, 0), 4)
-            cv2.rectangle(im, xy1, xy2, fg, 2)
+        cv2.putText(output, text, (rect[0], rect[1] - 5), font, font_scale, font_color, line_type)
 
-            fontScale = 0.80
-            fontColor = (255, 255, 255)
-            lineType = 2
-
-
-            image = cv2.imread(args.file)
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            image = image[ rect[1]:rect[1]+rect[3] , rect[0]: rect[0]+rect[2] ]
-            cv2.imwrite('face{}.png'.format(i+1), image)
-
-            image = cv2.resize(image,(WIDTH, HEIGHT))
-
-            image = torch.tensor(image, dtype=torch.float)
-
-            model.eval()
-            output = model(image)
-            output = torch.nn.functional.softmax(output, dim=1)
-            _, preds = torch.max(output, 1)
-            pred = PEOPLE[preds[0].item()]
-            cv2.putText(im, pred , (rect[0], rect[1] - 5), font, fontScale, fontColor, lineType)
-
-        cv2.imwrite("output.png", im)
-
-    # output
-    if (args.best or args.biggest) and best is not None:
-        features = [features[best]]
-
+    cv2.imwrite("output.png", im)
 
     return 0
 

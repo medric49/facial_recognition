@@ -11,6 +11,5 @@ def get_people():
         folder = "/".join([data_dir, f])
         if os.path.isdir(folder):
             people.append(f)
-    return people
 
-
+    return sorted(people)
