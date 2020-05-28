@@ -33,7 +33,7 @@ if 'cv' in dir(cv2):
     cv2.putText = putText
 
 # Profiles
-DATA_DIR = '/usr/share/opencv/'
+DATA_DIR = 'opencv/'
 CASCADES = {}
 
 PROFILES = {
@@ -122,7 +122,7 @@ def __main__():
 
         cv2.putText(output, text, (rect[0], rect[1] - 5), font, font_scale, font_color, line_type)
 
-    cv2.imwrite("output.png", im)
+    cv2.imwrite("output.png", output)
 
     return 0
 
